@@ -77,6 +77,13 @@ input[type=text],input[type=password],input[type=date],input[type=number],select
 .geo.in{border-color:var(--ok);background:var(--oksoft)}
 .geo.out{border-color:var(--miss);background:var(--misssoft)}
 .geo.wait{border-color:var(--late);background:var(--latesoft)}
+.mat{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fafbfa}
+.mat label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.mat textarea{width:100%;min-height:70px;resize:vertical;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;background:#fff;color:var(--ink)}
+.mat textarea:focus{outline:2px solid var(--brandsoft);border-color:var(--brand2)}
+.mat .mrow{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:6px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.mat.saved{background:var(--brandsoft);border-color:#a7d7b8}
+.matx{font-size:12.5px;white-space:pre-wrap;max-width:320px}
 /* denah */
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:5px;vertical-align:-1px}
@@ -155,7 +162,7 @@ input[type=text],input[type=password],input[type=date],input[type=number],select
       </label>
       <button class="btn sm noprint" onclick="exportMine()" title="Kirim file ini ke admin bila memakai perangkat sendiri">⬇ Unduh data saya hari ini</button>
     </div>
-    <p class="muted" style="margin:10px 0 0;font-size:13px">Saat masuk kelas, ketuk tombol <b>✅ Presensi Mengajar</b> pada jam pelajaran Anda. Tombol hanya aktif bila HP berada di <b>lingkungan SMKN 1 Pogalan</b> (lokasi GPS diperiksa otomatis). Waktu dan lokasi presensi tercatat ke rekap sekolah.</p>
+    <p class="muted" style="margin:10px 0 0;font-size:13px">Saat masuk kelas, ketuk tombol <b>✅ Presensi Mengajar</b> pada jam pelajaran Anda. Tombol hanya aktif bila HP berada di <b>lingkungan SMKN 1 Pogalan</b> (lokasi GPS diperiksa otomatis). Waktu dan lokasi presensi tercatat ke rekap sekolah. Isi juga kolom <b>📝 Materi dan aktivitas pembelajaran</b> di setiap jam pelajaran, lalu tekan <b>Simpan materi</b>.</p>
   </div>
   <div id="gGeo"></div>
   <div id="gNow"></div>
@@ -210,6 +217,7 @@ input[type=text],input[type=password],input[type=date],input[type=number],select
         <label class="f">Jam<select id="lJam" onchange="renderDaftar()"><option value="">Semua</option></select></label>
         <label class="f">Status<select id="lSt" onchange="renderDaftar()"><option value="">Semua</option><option value="ok">Tepat waktu</option><option value="late">Terlambat</option><option value="out">Di luar jam</option><option value="miss">Belum presensi</option></select></label>
         <label class="f grow">Cari guru / kelas<input type="text" id="lQ" oninput="renderDaftar()" placeholder="ketik nama atau kelas"></label>
+        <button class="btn sm" onclick="exportDaftar()">⬇ CSV</button>
         <button class="btn sm" onclick="window.print()">🖨 Cetak</button>
       </div></div>
       <div class="tblwrap"><table class="tbl" id="lTbl"></table></div>
@@ -394,7 +402,10 @@ function renderGeo(){const el=$('gGeo');if(!el)return;if(!$('gName').value){el.i
   if(s.k!==_lastGeoK){_lastGeoK=s.k;renderGuru()}}
 const geoTag=g=>g?`${g.lat.toFixed(6)},${g.lng.toFixed(6)}|${Math.round(g.acc)}|${Math.round(g.dist)}`:'';
 
+const MAT_MAX=300,DRAFT={};
 async function renderGuru(){
+  if(document.activeElement&&document.activeElement.classList.contains('matin')){renderGuru._pending=true;return}
+  renderGuru._pending=false;
   const name=$('gName').value,today=ymd(new Date()),day=dayOf(today);
   if(!name){$('gNow').innerHTML='';$('gList').innerHTML='<div class="card empty">Pilih nama Anda untuk melihat jadwal mengajar hari ini.</div>';return}
   const list=(GURU[name]||[]).filter(c=>c.day===day).sort((a,b)=>a.jam-b.jam);
@@ -416,10 +427,28 @@ async function renderGuru(){
       <div class="top"><div class="row" style="align-items:flex-start"><div class="jamb">Jam ${c.jam}<small>${c.waktu.replace('-','–')}</small></div>
       <div><b style="font-size:16px">${esc(c.kelas)}</b> ${isNow?'<span class="chip ok">SEDANG BERLANGSUNG</span>':''}<div class="muted" style="font-size:13px">${esc(c.mapel)} · Ruang <b>${esc(c.room||'—')}</b></div></div></div>${chip(st)}</div>
       ${body}
+      ${matBox(id,r)}
       ${r?.flag?`<div class="muted" style="font-size:12px;margin-top:6px">⚠ ${esc(r.flag)}</div>`:''}${r&&SYNC()?`<div style="font-size:12px;margin-top:6px;font-weight:600;color:${isSynced(r)?'var(--ok)':'var(--late)'}">${isSynced(r)?'☁ Terkirim ke Google Sheet':'⏳ Menunggu terkirim ke Google Sheet…'}</div>`:''}</div>`}).join('');
   const nowEl=document.querySelector('.slot.now');if(nowEl&&!renderGuru._scrolled){nowEl.scrollIntoView({behavior:'smooth',block:'center'});renderGuru._scrolled=true}
 }
 
+function matBox(id,r){
+  const saved=r?.materi||'',val=DRAFT[id]??saved,dirty=DRAFT[id]!=null&&DRAFT[id]!==saved;
+  return`<div class="mat ${saved&&!dirty?'saved':''}"><label for="m_${id}">📝 Materi dan aktivitas pembelajaran <span style="font-weight:500">(singkat, jelas, dan padat)</span></label>
+  <textarea id="m_${id}" class="matin" maxlength="${MAT_MAX}" placeholder="Contoh: Persamaan linear 1 variabel — penjelasan konsep, latihan soal berpasangan, kuis 5 soal." oninput="matInput('${id}',this)" onblur="if(renderGuru._pending)setTimeout(renderGuru,300)">${esc(val)}</textarea>
+  <div class="mrow"><span id="mc_${id}">${val.length}/${MAT_MAX} karakter${saved?` · tersimpan ${hhmm(r.tMateri||r.tKelas||Date.now())}`:''}${dirty?' · <b style="color:var(--late)">belum disimpan</b>':''}</span>
+  <button class="btn sm p" onmousedown="event.preventDefault()" onclick="saveMateri('${id}')">💾 Simpan materi</button></div></div>`}
+function matInput(id,el){DRAFT[id]=el.value;const c=$('mc_'+id);if(c)c.textContent=el.value.length+'/'+MAT_MAX+' karakter · belum disimpan';el.closest('.mat').classList.remove('saved')}
+async function saveMateri(id){
+  const el=$('m_'+id),txt=(el?el.value:DRAFT[id]||'').replace(/\s+\n/g,'\n').trim().slice(0,MAT_MAX);
+  const[date,kelas,jamS]=id.split('|'),jam=+jamS;
+  if(date!==ymd(new Date())){toast('Materi hanya dapat diisi untuk hari ini');return}
+  if(txt.length<5){toast('Isi materi & aktivitas terlebih dahulu (min. 5 karakter)');el&&el.focus();return}
+  const c=cell(dayOf(date),kelas,jam);
+  const r=(await getRec(id))||{id,date,day:c.day,jam,kelas,room:c.room,code:c.code,guru:c.guru,mapel:c.mapel,waktu:c.waktu};
+  r.materi=txt;r.tMateri=Date.now();await putRec(r);delete DRAFT[id];
+  if(el)el.blur();toast('Materi tersimpan ✓');renderGuru();queueSync(id);
+}
 async function checkin(id,btn){
   const[date,kelas,jamS]=id.split('|'),jam=+jamS,c=cell(dayOf(date),kelas,jam),now=Date.now();
   if(date!==ymd(new Date())){toast('Presensi hanya untuk hari ini');return}
@@ -441,7 +470,7 @@ async function exportMine(){const name=$('gName').value;if(!name){toast('Pilih n
 
 /* =============== GOOGLE SHEET SYNC =============== */
 const SYNC=()=>!!S.url&&/^https:\/\/script\.google(usercontent)?\.com\//.test(S.url);
-const sig=r=>[r.tKelas||'',r.tSelfie||''].join('|');
+const sig=r=>[r.tKelas||'',r.tSelfie||'',r.materi||''].join('|');
 const isSynced=r=>r.syncedT===sig(r);
 function fetchT(url,opt={},ms=20000){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);return fetch(url,{...opt,signal:c.signal}).finally(()=>clearTimeout(t))}
 async function queueSync(id){const q=(await metaGet('queue'))||[];if(!q.includes(id))q.push(id);await metaSet('queue',q);syncNow()}
@@ -458,7 +487,7 @@ async function syncNow(manual){
   if(sent&&role==='guru')renderGuru();updSyncInfo();return sent}
 async function pushRec(r){
   const c=cell(r.day,r.kelas,r.jam),s=sig(r);
-  const rec={id:r.id,date:r.date,day:r.day,jam:r.jam,waktu:r.waktu,kelas:r.kelas,room:r.room,code:r.code,guru:r.guru,mapel:r.mapel,tKelas:r.tKelas||'',status:c?ST[statusOf(c,r.date,r)]:'',flag:r.flag||'',dev:r.dev||'',gKelas:r.gKelas||'',gSelfie:r.gSelfie||''};
+  const rec={id:r.id,date:r.date,day:r.day,jam:r.jam,waktu:r.waktu,kelas:r.kelas,room:r.room,code:r.code,guru:r.guru,mapel:r.mapel,tKelas:r.tKelas||'',materi:r.materi||'',tMateri:r.tMateri||'',status:c?ST[statusOf(c,r.date,r)]:'',flag:r.flag||'',dev:r.dev||'',gKelas:r.gKelas||'',gSelfie:r.gSelfie||''};
   const res=await fetchT(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:S.token,rec})},60000);
   const j=await res.json();if(!j.ok)throw new Error(j.error||'gagal');
   const cur=await getRec(r.id);cur.syncedT=s;cur.sentSig=s;await putRec(cur);
@@ -472,7 +501,9 @@ async function pull(from,to,force){
       for(const k of['Kelas']){const t=+s['t'+k]||0;if(!t)continue;
         if(old&&old['t'+k]&&old['f'+k]&&(old['t'+k]===t||!s['u'+k]))continue;
         m['t'+k]=t;m['f'+k]=s['u'+k]||old?.['f'+k]}
-      const sg=sig(m);m.syncedT=sg;if(!m.sentSig)m.sentSig=sg;await putRec(m)}
+      const localMat=old&&old.materi&&!isSynced(old);
+      if(localMat){m.materi=old.materi;m.tMateri=old.tMateri}else if(s.materi){m.materi=s.materi;m.tMateri=+s.tMateri||old?.tMateri||0}
+      const sg=sig(m);if(localMat)m.syncedT=old.syncedT;else m.syncedT=sg;if(!m.sentSig)m.sentSig=sg;await putRec(m)}
     pulled[key]=Date.now();updSyncInfo('Data sheet diperbarui '+hhmm(Date.now()));return true}
   catch(e){console.warn('pull',e);updSyncInfo('⚠ Gagal membaca sheet: '+(e.message||e));return false}}
 async function updSyncInfo(extra){const el=$('syncInfo'),ch=$('gsChip');const q=((await metaGet('queue'))||[]).length;
@@ -482,7 +513,7 @@ async function saveSync(){S.url=$('sUrl').value.trim();S.token=$('sTok').value.t
   if(!SYNC()){updSyncInfo();toast(S.url?'URL harus diawali https://script.google.com/…':'Koneksi dimatikan');return}
   try{const j=await(await fetchT(`${S.url}?action=ping&token=${encodeURIComponent(S.token)}`)).json();
     if(!j.ok)throw new Error(j.error);toast(`Tersambung ke "${j.sheet}" (${j.rows} baris)`);
-    const all=await allRec();const q=all.filter(r=>(r.tKelas||r.tSelfie)&&!isSynced(r)).map(r=>r.id);if(q.length){await metaSet('queue',q);syncNow(true)}
+    const all=await allRec();const q=all.filter(r=>(r.tKelas||r.tSelfie||r.materi)&&!isSynced(r)).map(r=>r.id);if(q.length){await metaSet('queue',q);syncNow(true)}
     updSyncInfo()}catch(e){toast('Gagal tersambung: '+(e.message||e));updSyncInfo('⚠ '+(e.message||e))}}
 window.addEventListener('online',()=>syncNow());
 
@@ -526,7 +557,8 @@ function roomInfo(r){const a=window._dSlots[r];if(!a)return;const date=$('dDate'
   modal(`<h2>Ruang ${esc(r==='?'?'(tidak tercantum)':r)}</h2>`+a.map(c=>{const x=c.rec||{};return`<div style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px">
     <div class="row"><div class="grow kv"><span>Kelas</span><b>${esc(c.kelas)}</b><span>Guru</span><b>${esc(c.guru)}</b><span>Mapel</span><span style="color:var(--ink)">${esc(c.mapel)}</span><span>Jam</span><span style="color:var(--ink)">ke-${c.jam} · ${c.waktu.replace('-','–')}</span>
     <span>Presensi</span><span style="color:var(--ink)">${x.tKelas?hhmm(x.tKelas)+' WIB':'—'}</span>
-    <span>Lokasi</span><span style="color:var(--ink)">${geoLink(x.gKelas)}</span></div>${chip(c.st)}</div>
+    <span>Lokasi</span><span style="color:var(--ink)">${geoLink(x.gKelas)}</span>
+    <span>Materi</span><span style="color:var(--ink);white-space:pre-wrap">${x.materi?esc(x.materi):'<span class="muted">belum diisi</span>'}</span></div>${chip(c.st)}</div>
     ${x.flag?`<p style="color:var(--late);font-size:13px">⚠ ${esc(x.flag)}</p>`:''}
 </div>`}).join(''))}
 
@@ -536,14 +568,16 @@ async function renderDaftar(){
   if(!D.times[day]){$('lTbl').innerHTML='<tr><td class="empty">Tidak ada jadwal pada '+fmtDate(date)+'</td></tr>';return}
   await pull(date,date);const recs=await recsByDate(date);let rows=[];
   for(let j=1;j<=10;j++){if(fj&&+fj!==j)continue;slotsAt(day,j).forEach(c=>{const r=recs[recId(date,c.kelas,j)];const st=statusOf(c,date,r,now);rows.push({c,r,st})})}
-  rows=rows.filter(x=>(!fs||x.st===fs)&&(!q||(x.c.guru+' '+x.c.kelas+' '+x.c.mapel).toLowerCase().includes(q)));
+  rows=rows.filter(x=>(!fs||x.st===fs)&&(!q||(x.c.guru+' '+x.c.kelas+' '+x.c.mapel+' '+(x.r?.materi||'')).toLowerCase().includes(q)));
   window._lRows=rows;
-  $('lTbl').innerHTML=`<thead><tr><th>Jam</th><th>Kelas</th><th>Ruang</th><th>Guru</th><th>Mapel</th><th>Presensi</th><th>Lokasi</th><th>Status</th></tr></thead><tbody>`+
+  $('lTbl').innerHTML=`<thead><tr><th>Jam</th><th>Kelas</th><th>Ruang</th><th>Guru</th><th>Mapel</th><th>Presensi</th><th>Lokasi</th><th>Materi & aktivitas</th><th>Status</th></tr></thead><tbody>`+
    (rows.length?rows.map((x,i)=>`<tr><td><b>${x.c.jam}</b><div class="muted" style="font-size:11px">${x.c.waktu}</div></td><td>${esc(x.c.kelas)}</td><td>${esc(x.c.room||'—')}</td><td>${esc(x.c.guru)}</td><td>${esc(x.c.mapel)}</td>
    <td>${x.r?.tKelas?'<b>'+hhmm(x.r.tKelas)+'</b>':'<span class="muted">—</span>'}</td>
-   <td style="font-size:12.5px">${geoLink(x.r?.gKelas)}</td><td>${chip(x.st)}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">Tidak ada data sesuai filter</td></tr>')+'</tbody>';
+   <td style="font-size:12.5px">${geoLink(x.r?.gKelas)}</td><td class="matx">${x.r?.materi?esc(x.r.materi):'<span class="muted">—</span>'}</td><td>${chip(x.st)}</td></tr>`).join(''):'<tr><td colspan="9" class="empty">Tidak ada data sesuai filter</td></tr>')+'</tbody>';
 }
 
+function exportDaftar(){const rows=window._lRows||[];const h='Tanggal;Jam;Waktu;Kelas;Ruang;Guru;Mapel;Presensi;Materi dan Aktivitas;Status';
+  download(`Presensi_KBM_${$('lDate').value}.csv`,'\ufeff'+h+'\n'+rows.map(x=>[$('lDate').value,x.c.jam,x.c.waktu,x.c.kelas,x.c.room||'',x.c.guru,x.c.mapel,x.r?.tKelas?hhmm(x.r.tKelas):'',x.r?.materi||'',ST[x.st]].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv')}
 /* ----- rekap ----- */
 let rSort={k:'pct',d:1};
 function rekapPreset(p){const n=new Date();let a;if(p==='week'){a=new Date(n);a.setDate(n.getDate()-((n.getDay()+6)%7))}else a=new Date(n.getFullYear(),n.getMonth(),1);$('rFrom').value=ymd(a);$('rTo').value=ymd(n);renderRekap()}
@@ -592,8 +626,8 @@ function saveSet(){S.name=$('sName').value.trim()||S.name;S.tol=Math.max(0,+$('s
 function applyName(){$('schoolName').textContent=S.name;document.title=S.name}
 async function exportAll(){const recs=await allRec();download(`KBM_semua_${ymd(new Date())}.json`,JSON.stringify({app:'kbm',recs}))}
 async function importFiles(inp){let n=0,u=0;for(const f of inp.files){try{const j=JSON.parse(await f.text());for(const r of(j.recs||[])){if(!r.id)continue;const old=await getRec(r.id);
-  if(!old){await putRec(r);n++}else{const m={...old};['Kelas','Selfie'].forEach(k=>{if(r['f'+k]&&(!old['f'+k]||r['t'+k]<old['t'+k])){m['f'+k]=r['f'+k];m['t'+k]=r['t'+k]}});if(r.flag&&!old.flag)m.flag=r.flag;await putRec(m);u++}}}catch(e){toast('Gagal membaca '+f.name)}}
-  for(const r of await allRec())if((r.tKelas||r.tSelfie)&&!isSynced(r))await queueSync(r.id);
+  if(!old){await putRec(r);n++}else{const m={...old};['Kelas','Selfie'].forEach(k=>{if(r['f'+k]&&(!old['f'+k]||r['t'+k]<old['t'+k])){m['f'+k]=r['f'+k];m['t'+k]=r['t'+k]}});if(r.flag&&!old.flag)m.flag=r.flag;if(r.materi&&(!old.materi||(r.tMateri||0)>(old.tMateri||0))){m.materi=r.materi;m.tMateri=r.tMateri}await putRec(m);u++}}}catch(e){toast('Gagal membaca '+f.name)}}
+  for(const r of await allRec())if((r.tKelas||r.tSelfie||r.materi)&&!isSynced(r))await queueSync(r.id);
   inp.value='';toast(`Impor selesai: ${n} baru, ${u} digabung`);renderSet()}
 async function wipe(){if(!confirm('Hapus SEMUA catatan presensi di perangkat ini? Tindakan ini tidak bisa dibatalkan.'))return;if(prompt('Ketik HAPUS untuk konfirmasi')!=='HAPUS')return;await P(tx('rec','readwrite').clear());toast('Semua dokumentasi dihapus');renderSet()}
 
