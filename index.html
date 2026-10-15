@@ -173,8 +173,7 @@ input[type=text],input[type=password],input[type=date],input[type=number],select
 <section id="vKs" class="hidden">
   <div id="ksLock" class="card" style="max-width:380px;margin:40px auto">
     <h2>Masuk Kepala Sekolah</h2>
-    <p class="muted">Masukkan PIN (bawaan: <b>1234</b>, ganti di Pengaturan).</p>
-    <div class="row"><input type="password" id="pin" class="grow" placeholder="PIN" onkeydown="if(event.key==='Enter')login()"><button class="btn p" onclick="login()">Masuk</button></div>
+    <div class="row"><input type="password" id="pin" class="grow" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Kata sandi" onkeydown="if(event.key==='Enter')login()"><button class="btn p" id="pinBtn" onclick="login()">Masuk</button></div>
   </div>
   <div id="ksApp" class="hidden">
     <div class="tabs">
@@ -266,7 +265,6 @@ input[type=text],input[type=password],input[type=date],input[type=number],select
           <label class="f grow">Nama sekolah<input type="text" id="sName"></label>
           <label class="f">Toleransi tepat waktu (menit)<input type="number" id="sTol" min="0" max="30" style="width:110px"></label>
           <label class="f">Boleh presensi sebelum mulai (menit)<input type="number" id="sPre" min="0" max="30" style="width:110px"></label>
-          <label class="f">PIN baru<input type="password" id="sPin" placeholder="kosongkan jika tetap" style="width:150px"></label>
           <button class="btn p" onclick="saveSet()">Simpan</button>
         </div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px"><input type="checkbox" id="sLate"> Izinkan guru presensi setelah jam pelajaran berakhir (ditandai "di luar jam")</label>
@@ -310,8 +308,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const LS={get(k,d){try{const v=localStorage.getItem('kbm_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('kbm_'+k,JSON.stringify(v))}catch(e){}}};
 /* Isi URL Web App di sini agar semua perangkat guru otomatis tersambung tanpa perlu mengatur */
 const CONFIG={url:'https://script.google.com/macros/s/AKfycbxN7udXgglLshWVly9RTmRmVO6rRqNouTeq0VEH5RdUHfGJEDgInbbrKU-w0w3GP9paYA/exec',token:'smkn1pogalan'};
-let S=Object.assign({name:'Jurnal KBM SMK Negeri 1 Pogalan',tol:10,pre:5,late:true,pin:'1234',url:CONFIG.url,token:CONFIG.token},LS.get('set',{}));
+let S=Object.assign({name:'Jurnal KBM SMK Negeri 1 Pogalan',tol:10,pre:5,late:true,url:CONFIG.url,token:CONFIG.token},LS.get('set',{}));
 if(!S.url&&CONFIG.url)S.url=CONFIG.url;
+delete S.pin;
 if(!S.name||/^Presensi KBM SMK/.test(S.name)){S.name='Jurnal KBM SMK Negeri 1 Pogalan';LS.set('set',S)}
 
 /* ---------- jadwal index ---------- */
@@ -368,8 +367,27 @@ setInterval(tick,1000);
 
 /* ---------- role ---------- */
 let role='guru',authed=false;
-function setRole(r){role=r;$('rGuru').classList.toggle('on',r==='guru');$('rKs').classList.toggle('on',r==='ks');$('vGuru').classList.toggle('hidden',r!=='guru');$('vKs').classList.toggle('hidden',r!=='ks');if(r==='ks'&&authed)ksTab(curTab);if(r==='guru')renderGuru()}
-function login(){if($('pin').value===S.pin){authed=true;$('ksLock').classList.add('hidden');$('ksApp').classList.remove('hidden');$('pin').value='';ksTab('denah')}else toast('PIN salah')}
+function setRole(r){role=r;$('rGuru').classList.toggle('on',r==='guru');$('rKs').classList.toggle('on',r==='ks');$('vGuru').classList.toggle('hidden',r!=='guru');$('vKs').classList.toggle('hidden',r!=='ks');if(r==='ks'&&authed)ksTab(curTab);if(r==='guru'){if(authed)ksLockNow();renderGuru()}}
+const KS_H='be7c6533f5a9f6ad0edef4602cd9cc4c8265a02175647a5d71363284b73616f7';
+function sha256hex(str){const K=[],H=[];let n=2,c=0;const fr=x=>(x-Math.floor(x))*4294967296|0;
+  while(c<64){let p=1;for(let d=2;d*d<=n;d++)if(n%d===0){p=0;break}if(p){if(c<8)H[c]=fr(Math.pow(n,1/2));K[c++]=fr(Math.pow(n,1/3))}n++}
+  const b=unescape(encodeURIComponent(str)),l=b.length,w=[];for(let i=0;i<l;i++)w[i>>2]|=b.charCodeAt(i)<<(24-(i%4)*8);
+  w[l>>2]|=0x80<<(24-(l%4)*8);const L=((l+8)>>6)*16+15;for(let i=(l>>2)+1;i<=L;i++)w[i]=w[i]|0;w[L]=l*8;
+  const r=(x,y)=>(x>>>y)|(x<<(32-y)),h=H.slice(),W=[];
+  for(let j=0;j<w.length;j+=16){let[a,b2,c2,d,e,f,g,k]=h;
+    for(let i=0;i<64;i++){if(i<16)W[i]=w[j+i]|0;else{const s0=r(W[i-15],7)^r(W[i-15],18)^(W[i-15]>>>3),s1=r(W[i-2],17)^r(W[i-2],19)^(W[i-2]>>>10);W[i]=(W[i-16]+s0+W[i-7]+s1)|0}
+      const t1=(k+(r(e,6)^r(e,11)^r(e,25))+((e&f)^(~e&g))+K[i]+W[i])|0,t2=((r(a,2)^r(a,13)^r(a,22))+((a&b2)^(a&c2)^(b2&c2)))|0;
+      k=g;g=f;f=e;e=(d+t1)|0;d=c2;c2=b2;b2=a;a=(t1+t2)|0}
+    h[0]=(h[0]+a)|0;h[1]=(h[1]+b2)|0;h[2]=(h[2]+c2)|0;h[3]=(h[3]+d)|0;h[4]=(h[4]+e)|0;h[5]=(h[5]+f)|0;h[6]=(h[6]+g)|0;h[7]=(h[7]+k)|0}
+  return h.map(x=>(x>>>0).toString(16).padStart(8,'0')).join('')}
+function ksLockNow(){authed=false;$('ksApp').classList.add('hidden');$('ksLock').classList.remove('hidden');$('pin').value=''}
+function login(){
+  const now=Date.now(),lk=LS.get('ksLk',{n:0,t:0});
+  if(lk.t>now){toast('Coba lagi dalam '+Math.ceil((lk.t-now)/1000)+' detik');return}
+  const v=$('pin').value;$('pin').value='';
+  if(v&&sha256hex(v)===KS_H){LS.set('ksLk',{n:0,t:0});authed=true;$('ksLock').classList.add('hidden');$('ksApp').classList.remove('hidden');ksTab('denah')}
+  else{lk.n++;if(lk.n>=5){lk.t=now+60000*Math.min(10,lk.n-4)}LS.set('ksLk',lk);toast('Kata sandi salah')}
+}
 
 /* =============== GURU =============== */
 function pickGuru(){LS.set('guru',$('gName').value);if($('gName').value)geoStart();renderGeo();renderGuru()}
@@ -623,7 +641,7 @@ async function clearMap(){if(!confirm('Hapus gambar denah dan semua penanda?'))r
 /* ----- settings & data ----- */
 async function renderSet(){$('sUrl').value=S.url||'';$('sTok').value=S.token||'';updSyncInfo();$('sName').value=S.name;$('sTol').value=S.tol;$('sPre').value=S.pre;$('sLate').checked=S.late;
   const all=await allRec();  $('sInfo').textContent=`${all.length} catatan jam pelajaran tersimpan · ${GURUS.length} guru · ${D.classes.length} kelas · ${ROOMS.length} ruang dalam jadwal.`}
-function saveSet(){S.name=$('sName').value.trim()||S.name;S.tol=Math.max(0,+$('sTol').value||0);S.pre=Math.max(0,+$('sPre').value||0);S.late=$('sLate').checked;const p=$('sPin').value.trim();if(p)S.pin=p;$('sPin').value='';LS.set('set',S);applyName();toast('Pengaturan disimpan')}
+function saveSet(){S.name=$('sName').value.trim()||S.name;S.tol=Math.max(0,+$('sTol').value||0);S.pre=Math.max(0,+$('sPre').value||0);S.late=$('sLate').checked;LS.set('set',S);applyName();toast('Pengaturan disimpan')}
 function applyName(){$('schoolName').textContent=S.name;document.title=S.name}
 async function exportAll(){const recs=await allRec();download(`KBM_semua_${ymd(new Date())}.json`,JSON.stringify({app:'kbm',recs}))}
 async function importFiles(inp){let n=0,u=0;for(const f of inp.files){try{const j=JSON.parse(await f.text());for(const r of(j.recs||[])){if(!r.id)continue;const old=await getRec(r.id);
